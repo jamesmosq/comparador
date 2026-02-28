@@ -29,6 +29,7 @@ Thumbs.db
 # Archivos locales de trabajo
 /ANALIZAR.txt
 /ACTAS - AMBIENTES - NOVEDADES/
+/logs.railway
 
 # Laravel runtime (se crean en el servidor)
 /storage/framework/cache/data/
