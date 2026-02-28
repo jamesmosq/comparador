@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
 set -e
 
+cd /app
+
 echo "Creating storage directories..."
-mkdir -p storage/framework/{sessions,views,cache,testing} storage/logs bootstrap/cache
-chmod -R 775 storage bootstrap/cache
+mkdir -p /app/storage/framework/{sessions,views,cache,testing}
+mkdir -p /app/storage/logs
+mkdir -p /app/bootstrap/cache
+chmod -R 775 /app/storage /app/bootstrap/cache
 
 echo "Running migrations..."
 php artisan migrate --force
