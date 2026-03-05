@@ -745,7 +745,7 @@ new class extends Component
                             <input type="checkbox" wire:model="new_group_ids" value="{{ $grp->id }}"
                                    class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-400">
                             <span class="text-sm text-gray-700">
-                                {{ $grp->ficha_number ? '<span class="font-mono text-xs text-indigo-600">' . $grp->ficha_number . '</span> — ' : '' }}{{ $grp->name }}
+                                @if($grp->ficha_number)<span class="font-mono text-xs text-indigo-600">{{ $grp->ficha_number }}</span> — @endif{{ $grp->name }}
                             </span>
                         </label>
                         @endforeach
