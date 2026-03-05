@@ -40,3 +40,7 @@ Thumbs.db
 
 # Plantillas Word SENA (el servidor las debe tener, no se versionan)
 /storage/app/plantillas_sena/*.docx
+
+
+#Ignore vscode AI rules
+.github\instructions\codacy.instructions.md
