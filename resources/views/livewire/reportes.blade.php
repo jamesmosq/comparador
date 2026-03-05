@@ -63,35 +63,44 @@ new class extends Component
             ->orderBy('name')
             ->get();
 
-        $this->report = $students->map(function (Student $student) {
-            $query = Attendance::where('student_id', $student->id)
-                ->whereBetween('attendance_date', [$this->filter_start, $this->filter_end]);
+        $statsQuery = Attendance::selectRaw('
+            student_id,
+            COUNT(*) as total,
+            SUM(CASE WHEN is_present = 1 THEN 1 ELSE 0 END) as attended,
+            SUM(CASE WHEN is_present = 0 AND is_justified = 1 THEN 1 ELSE 0 END) as justified,
+            SUM(CASE WHEN is_present = 0 AND is_justified = 0 THEN 1 ELSE 0 END) as unjustified
+        ')
+        ->whereIn('student_id', $students->pluck('id'))
+        ->whereBetween('attendance_date', [$this->filter_start, $this->filter_end]);
 
-            if ($this->filter_competencia_id) {
-                $query->where('competencia_id', $this->filter_competencia_id);
-            }
+        if ($this->filter_competencia_id) {
+            $statsQuery->where('competencia_id', $this->filter_competencia_id);
+        }
 
-            $records    = $query->get();
-            $total      = $records->count();
-            $attended   = $records->where('is_present', true)->count();
-            $justified  = $records->where('is_present', false)->where('is_justified', true)->count();
-            $unjustified = $records->where('is_present', false)->where('is_justified', false)->count();
+        $stats = $statsQuery->groupBy('student_id')->get()->keyBy('student_id');
 
-            $attendancePct   = $total > 0 ? round(($attended  / $total) * 100) : null;
-            $unjustifiedPct  = $total > 0 ? round(($unjustified / $total) * 100) : null;
+        $this->report = $students->map(function (Student $student) use ($stats) {
+            $row         = $stats->get($student->id);
+            $total       = $row ? (int) $row->total       : 0;
+            $attended    = $row ? (int) $row->attended    : 0;
+            $justified   = $row ? (int) $row->justified   : 0;
+            $unjustified = $row ? (int) $row->unjustified : 0;
+
+            $attendancePct  = $total > 0 ? round(($attended    / $total) * 100) : null;
+            $unjustifiedPct = $total > 0 ? round(($unjustified / $total) * 100) : null;
 
             return [
-                'id'               => $student->id,
-                'name'             => $student->name,
-                'identifier'       => $student->identifier ?? 'N/A',
-                'email'            => $student->email      ?? '—',
-                'attended'         => $attended,
-                'justified'        => $justified,
-                'unjustified'      => $unjustified,
-                'total'            => $total,
-                'percentage'       => $attendancePct,
-                'percentage_str'   => $attendancePct !== null ? $attendancePct . '%' : 'Sin datos',
-                'unjustified_pct'  => $unjustifiedPct,
+                'id'             => $student->id,
+                'name'           => $student->name,
+                'identifier'     => $student->identifier ?? 'N/A',
+                'email'          => $student->email      ?? '—',
+                'attended'       => $attended,
+                'justified'      => $justified,
+                'unjustified'    => $unjustified,
+                'total'          => $total,
+                'percentage'     => $attendancePct,
+                'percentage_str' => $attendancePct !== null ? $attendancePct . '%' : 'Sin datos',
+                'unjustified_pct' => $unjustifiedPct,
             ];
         })->toArray();
     }
@@ -210,7 +219,7 @@ new class extends Component
             </div>
             <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-4 text-center">
                 <p class="text-xs text-gray-400 uppercase tracking-wider mb-1">% Asistencia prom.</p>
-                <p class="text-2xl font-bold {{ $avgPct >= 80 ? 'text-green-600' : ($avgPct >= 60 ? 'text-yellow-600' : 'text-red-600') }}">
+                <p class="text-2xl font-bold {{ $avgPct === null ? 'text-gray-400' : ($avgPct >= 80 ? 'text-green-600' : ($avgPct >= 60 ? 'text-yellow-600' : 'text-red-600')) }}">
                     {{ $avgPct !== null ? $avgPct . '%' : '—' }}
                 </p>
             </div>

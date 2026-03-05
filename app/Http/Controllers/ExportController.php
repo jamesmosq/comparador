@@ -17,11 +17,16 @@ class ExportController extends Controller
         $end           = $request->query('end',   now()->format('Y-m-d'));
         $competenciaId = $request->query('competencia_id');
 
-        $group = Group::find($groupId);
+        $group = Group::with('institution')->find($groupId);
 
         if (! $group) {
             abort(404, 'Grupo no encontrado.');
         }
+
+        abort_if(
+            ! auth()->user()->isAdmin() && $group->institution?->user_id !== auth()->id(),
+            403
+        );
 
         $students  = Student::where('group_id', $groupId)->orderBy('name')->get();
         $groupName = preg_replace('/[^a-zA-Z0-9_-]/', '_', $group->name);

@@ -166,20 +166,24 @@ new class extends Component {
     {
         $this->attendance_status  = [];
         $this->attendance_remarks = [];
-        foreach ($this->students as $student) {
-            $existing = Attendance::where('student_id', $student->id)
-                ->where('attendance_date', $this->attendance_date)
-                ->where('competencia_id', $this->competencia_id ?: null)
-                ->first();
 
-            if ($existing) {
-                $this->attendance_status[$student->id] = $existing->is_present
+        $studentIds = collect($this->students)->pluck('id');
+        $existing = Attendance::whereIn('student_id', $studentIds)
+            ->where('attendance_date', $this->attendance_date)
+            ->where('competencia_id', $this->competencia_id ?: null)
+            ->get()
+            ->keyBy('student_id');
+
+        foreach ($this->students as $student) {
+            $rec = $existing->get($student->id);
+            if ($rec) {
+                $this->attendance_status[$student->id] = $rec->is_present
                     ? 'present'
-                    : ($existing->is_justified ? 'justified' : 'absent');
+                    : ($rec->is_justified ? 'justified' : 'absent');
             } else {
                 $this->attendance_status[$student->id] = 'present';
             }
-            $this->attendance_remarks[$student->id] = $existing?->remarks ?? '';
+            $this->attendance_remarks[$student->id] = $rec?->remarks ?? '';
         }
     }
 
@@ -213,7 +217,7 @@ new class extends Component {
 
     public function openEditStudent($id)
     {
-        $student = Student::find($id);
+        $student = Student::findOrFail($id);
         $this->editing_student_id         = $id;
         $this->editing_student_name       = $student->name;
         $this->editing_student_email      = $student->email      ?? '';
@@ -231,7 +235,7 @@ new class extends Component {
             'editing_student_email.email'   => 'Ingresa un correo válido.',
         ]);
 
-        Student::find($this->editing_student_id)->update([
+        Student::findOrFail($this->editing_student_id)->update([
             'name'       => trim($this->editing_student_name),
             'email'      => $this->editing_student_email      ? trim($this->editing_student_email)      : null,
             'identifier' => $this->editing_student_identifier ? trim($this->editing_student_identifier) : null,
@@ -245,7 +249,7 @@ new class extends Component {
 
     public function deleteStudent($id)
     {
-        Student::find($id)->delete();
+        Student::findOrFail($id)->delete();
         unset($this->attendance_status[$id]);
         unset($this->attendance_remarks[$id]);
         $this->students = collect($this->students)->reject(fn($s) => $s->id == $id)->values()->all();

@@ -12,6 +12,10 @@ class ActaController extends Controller
 {
     private function loadActa(Acta $acta): Acta
     {
+        abort_if(
+            ! auth()->user()->isAdmin() && $acta->user_id !== auth()->id(),
+            403
+        );
         $acta->load([
             'groups.institution',
             'groups.programaFormacion',
