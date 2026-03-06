@@ -5,6 +5,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\PrintController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\ActaController;
+use App\Http\Controllers\CalificacionController;
 
 // Rutas solo para invitados (redirige autenticados al dashboard)
 Route::middleware('guest')->group(function () {
@@ -44,6 +45,12 @@ Route::middleware('auth')->group(function () {
     Route::get('/actas/{acta}/preview',       [ActaController::class, 'preview'])->name('actas.preview');
     Route::get('/actas/{acta}/exportar/word', [ActaController::class, 'exportWord'])->name('actas.export.word');
     Route::get('/actas/{acta}/exportar/pdf',  [ActaController::class, 'exportPdf'])->name('actas.export.pdf');
+
+    // Calificaciones
+    Route::get('/calificaciones', fn () => view('calificaciones'))->name('calificaciones');
+    Route::get('/calificaciones/exportar/excel', [CalificacionController::class, 'exportExcel'])->name('calificaciones.export.excel');
+    Route::get('/calificaciones/exportar/pdf',   [CalificacionController::class, 'exportPdf'])->name('calificaciones.export.pdf');
+    Route::get('/calificaciones/exportar/word',  [CalificacionController::class, 'exportWord'])->name('calificaciones.export.word');
 });
 
 // Gestión de usuarios (solo admin)

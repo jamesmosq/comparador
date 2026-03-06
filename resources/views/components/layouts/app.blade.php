@@ -46,6 +46,13 @@
                                          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }}">
                                 Asistencia
                             </a>
+                            <a href="{{ route('calificaciones') }}"
+                               class="inline-flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors
+                                      {{ request()->routeIs('calificaciones')
+                                         ? 'bg-indigo-50 text-indigo-700'
+                                         : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }}">
+                                Calificaciones
+                            </a>
                             <a href="{{ route('reportes') }}"
                                class="inline-flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors
                                       {{ request()->routeIs('reportes')
@@ -123,6 +130,11 @@
                        class="block px-3 py-2 rounded-md text-sm font-medium
                               {{ request()->routeIs('asistencia') ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:bg-gray-50' }}">
                         Asistencia
+                    </a>
+                    <a href="{{ route('calificaciones') }}"
+                       class="block px-3 py-2 rounded-md text-sm font-medium
+                              {{ request()->routeIs('calificaciones') ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:bg-gray-50' }}">
+                        Calificaciones
                     </a>
                     <a href="{{ route('reportes') }}"
                        class="block px-3 py-2 rounded-md text-sm font-medium
