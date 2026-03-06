@@ -8,6 +8,8 @@ use App\Models\ProgramaFormacion;
 use App\Models\DocentePar;
 use App\Models\Acta;
 use App\Models\ActaCompromiso;
+use App\Models\ActaJuicio;
+use App\Models\Student;
 
 new class extends Component
 {
@@ -40,9 +42,12 @@ new class extends Component
     public string $new_objetivo         = '';
     public string $new_desarrollo       = '';
     public string $new_observaciones    = '';
+    public string $new_conclusiones     = '';
     public array $new_compromisos_rows  = [
         ['descripcion' => '', 'responsable' => 'ambos', 'fecha_limite' => ''],
     ];
+    public array $new_juicios           = []; // student_id => juicio
+    public array $juicio_students       = []; // lista de estudiantes para juicio
     public bool $showCreateModal = false;
 
     // ── Modal EDITAR ───────────────────────────────────────────────
@@ -61,7 +66,9 @@ new class extends Component
     public string $editing_objetivo         = '';
     public string $editing_desarrollo       = '';
     public string $editing_observaciones    = '';
+    public string $editing_conclusiones     = '';
     public array $editing_compromisos_rows  = [];
+    public array $editing_juicios           = []; // student_id => juicio
     public bool $showEditModal = false;
 
     // ── Docentes Par ───────────────────────────────────────────────
@@ -112,18 +119,63 @@ new class extends Component
 
     public function updatedNewInstitutionId(): void
     {
-        $this->new_group_ids = [];
-        $this->modal_groups  = $this->new_institution_id
+        $this->new_group_ids    = [];
+        $this->new_juicios      = [];
+        $this->juicio_students  = [];
+        $this->modal_groups     = $this->new_institution_id
             ? Group::where('institution_id', $this->new_institution_id)->orderBy('name')->get()
             : [];
+    }
+
+    public function updatedNewGroupIds(): void
+    {
+        $this->loadJuicioStudents('new');
+    }
+
+    public function updatedNewTipo(): void
+    {
+        $this->loadJuicioStudents('new');
     }
 
     public function updatedEditingInstitutionId(): void
     {
         $this->editing_group_ids = [];
-        $this->modal_groups = $this->editing_institution_id
+        $this->editing_juicios   = [];
+        $this->juicio_students   = [];
+        $this->modal_groups      = $this->editing_institution_id
             ? Group::where('institution_id', $this->editing_institution_id)->orderBy('name')->get()
             : [];
+    }
+
+    public function updatedEditingGroupIds(): void
+    {
+        $this->loadJuicioStudents('editing');
+    }
+
+    public function updatedEditingTipo(): void
+    {
+        $this->loadJuicioStudents('editing');
+    }
+
+    private function loadJuicioStudents(string $prefix): void
+    {
+        $tipo     = $prefix === 'new' ? $this->new_tipo     : $this->editing_tipo;
+        $groupIds = $prefix === 'new' ? $this->new_group_ids : $this->editing_group_ids;
+
+        if (! in_array($tipo, ['cierre', 'induccion', 'aprobacion_etapa_practica']) || empty($groupIds)) {
+            $this->juicio_students = [];
+            return;
+        }
+
+        $students = Student::whereIn('group_id', $groupIds)->orderBy('name')->get();
+        $this->juicio_students = $students->toArray();
+
+        $juiciosKey = $prefix . '_juicios';
+        foreach ($students as $s) {
+            if (! isset($this->{$juiciosKey}[$s->id])) {
+                $this->{$juiciosKey}[$s->id] = 'pendiente';
+            }
+        }
     }
 
     // ── CRUD Compromisos (filas dinámicas) ─────────────────────────
@@ -173,7 +225,7 @@ new class extends Component
     {
         $this->validate([
             'new_numero'         => 'required',
-            'new_tipo'           => 'required|in:seguimiento,inicio_ficha,visita_seguimiento,cierre,aprobacion_etapa_practica',
+            'new_tipo'           => 'required|in:seguimiento,inicio_ficha,visita_seguimiento,cierre,aprobacion_etapa_practica,induccion',
             'new_group_ids'      => 'required|array|min:1',
             'new_group_ids.*'    => 'exists:groups,id',
             'new_docente_par_id' => 'required|exists:docentes_par,id',
@@ -203,6 +255,7 @@ new class extends Component
             'objetivo'       => trim($this->new_objetivo) ?: null,
             'desarrollo'     => trim($this->new_desarrollo) ?: null,
             'observaciones'  => trim($this->new_observaciones) ?: null,
+            'conclusiones'   => trim($this->new_conclusiones) ?: null,
             'estado'         => 'borrador',
         ]);
 
@@ -221,11 +274,22 @@ new class extends Component
             }
         }
 
+        // Guardar juicios evaluativos (cierre / inducción)
+        foreach ($this->new_juicios as $studentId => $juicio) {
+            if ($juicio) {
+                ActaJuicio::updateOrCreate(
+                    ['acta_id' => $acta->id, 'student_id' => $studentId],
+                    ['juicio'  => $juicio]
+                );
+            }
+        }
+
         $this->reset([
             'new_numero', 'new_tipo', 'new_institution_id', 'new_group_ids',
             'new_docente_par_id', 'new_competencia_id', 'new_fecha', 'new_lugar',
             'new_agenda', 'new_hora_inicio', 'new_hora_fin', 'new_objetivo',
-            'new_desarrollo', 'new_observaciones', 'modal_groups',
+            'new_desarrollo', 'new_observaciones', 'new_conclusiones', 'modal_groups',
+            'new_juicios', 'juicio_students',
         ]);
         $this->new_compromisos_rows = [['descripcion' => '', 'responsable' => 'ambos', 'fecha_limite' => '']];
         $this->showCreateModal = false;
@@ -235,7 +299,7 @@ new class extends Component
 
     public function openEditActa($id): void
     {
-        $acta = Acta::with(['groups', 'compromisoItems'])->visibleTo(auth()->user())->findOrFail($id);
+        $acta = Acta::with(['groups', 'compromisoItems', 'juicios.student'])->visibleTo(auth()->user())->findOrFail($id);
 
         $this->editing_id             = $id;
         $this->editing_numero         = $acta->numero_acta;
@@ -250,6 +314,7 @@ new class extends Component
         $this->editing_objetivo       = $acta->objetivo ?? '';
         $this->editing_desarrollo     = $acta->desarrollo ?? '';
         $this->editing_observaciones  = $acta->observaciones ?? '';
+        $this->editing_conclusiones   = $acta->conclusiones ?? '';
 
         // Grupos asociados
         $this->editing_group_ids = $acta->groups->pluck('id')->map(fn ($id) => (string) $id)->toArray();
@@ -272,6 +337,18 @@ new class extends Component
             $this->editing_compromisos_rows = [['descripcion' => '', 'responsable' => 'ambos', 'fecha_limite' => '']];
         }
 
+        // Juicios evaluativos
+        $this->editing_juicios = $acta->juicios->pluck('juicio', 'student_id')->toArray();
+        if (in_array($acta->tipo, ['cierre', 'induccion', 'aprobacion_etapa_practica'])) {
+            $groupIds = $acta->groups->pluck('id');
+            $this->juicio_students = Student::whereIn('group_id', $groupIds)->orderBy('name')->get()->toArray();
+            foreach ($this->juicio_students as $s) {
+                if (! isset($this->editing_juicios[$s['id']])) {
+                    $this->editing_juicios[$s['id']] = 'pendiente';
+                }
+            }
+        }
+
         $this->showEditModal = true;
     }
 
@@ -279,7 +356,7 @@ new class extends Component
     {
         $this->validate([
             'editing_numero'         => 'required',
-            'editing_tipo'           => 'required|in:seguimiento,inicio_ficha,visita_seguimiento,cierre,aprobacion_etapa_practica',
+            'editing_tipo'           => 'required|in:seguimiento,inicio_ficha,visita_seguimiento,cierre,aprobacion_etapa_practica,induccion',
             'editing_group_ids'      => 'required|array|min:1',
             'editing_group_ids.*'    => 'exists:groups,id',
             'editing_docente_par_id' => 'required|exists:docentes_par,id',
@@ -305,6 +382,7 @@ new class extends Component
             'objetivo'       => trim($this->editing_objetivo) ?: null,
             'desarrollo'     => trim($this->editing_desarrollo) ?: null,
             'observaciones'  => trim($this->editing_observaciones) ?: null,
+            'conclusiones'   => trim($this->editing_conclusiones) ?: null,
         ]);
 
         $acta->groups()->sync($this->editing_group_ids);
@@ -318,6 +396,14 @@ new class extends Component
                     'fecha_limite' => $row['fecha_limite'] ?: null,
                     'orden'        => $i,
                 ]);
+            }
+        }
+
+        // Guardar juicios evaluativos
+        $acta->juicios()->delete();
+        foreach ($this->editing_juicios as $studentId => $juicio) {
+            if ($juicio) {
+                ActaJuicio::create(['acta_id' => $acta->id, 'student_id' => $studentId, 'juicio' => $juicio]);
             }
         }
 
@@ -711,13 +797,14 @@ new class extends Component
                     </div>
                     <div>
                         <label class="block text-xs font-medium text-gray-600 mb-1">Tipo *</label>
-                        <select wire:model="new_tipo"
+                        <select wire:model.live="new_tipo"
                                 class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
                             <option value="">Seleccionar...</option>
+                            <option value="inicio_ficha">Inicio de Ficha (GD-F-001)</option>
                             <option value="seguimiento">Seguimiento (GD-F-007)</option>
-                            <option value="inicio_ficha">Inicio de Ficha</option>
                             <option value="visita_seguimiento">Visita de Seguimiento</option>
-                            <option value="cierre">Cierre</option>
+                            <option value="induccion">Inducción / Reinducción</option>
+                            <option value="cierre">Cierre del Proceso Formativo</option>
                             <option value="aprobacion_etapa_practica">Aprobación Etapa Práctica</option>
                         </select>
                         @error('new_tipo') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
@@ -875,12 +962,56 @@ new class extends Component
                     </div>
                 </div>
 
+                {{-- Conclusiones --}}
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Conclusiones</label>
+                    <textarea wire:model="new_conclusiones" rows="2"
+                              class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none"></textarea>
+                </div>
+
                 {{-- Observaciones --}}
                 <div>
-                    <label class="block text-xs font-medium text-gray-600 mb-1">Observaciones</label>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Observaciones / Anexos</label>
                     <textarea wire:model="new_observaciones" rows="2"
                               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none"></textarea>
                 </div>
+
+                {{-- Juicios evaluativos (Cierre / Inducción) --}}
+                @if(count($juicio_students) > 0 && !$showEditModal)
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-2">
+                        Juicios Evaluativos por Aprendiz
+                        <span class="text-gray-400 font-normal">({{ count($juicio_students) }} aprendices)</span>
+                    </label>
+                    <div class="border border-gray-200 rounded-lg overflow-hidden max-h-52 overflow-y-auto">
+                        <table class="w-full text-xs">
+                            <thead class="bg-gray-50 sticky top-0">
+                                <tr>
+                                    <th class="px-2 py-1.5 text-left font-medium text-gray-500">Aprendiz</th>
+                                    <th class="px-2 py-1.5 text-left font-medium text-gray-500">Identificación</th>
+                                    <th class="px-2 py-1.5 text-left font-medium text-gray-500 w-36">Juicio</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100">
+                                @foreach($juicio_students as $s)
+                                <tr>
+                                    <td class="px-2 py-1">{{ $s['name'] }}</td>
+                                    <td class="px-2 py-1 text-gray-400">{{ $s['identifier'] ?? '—' }}</td>
+                                    <td class="px-1 py-1">
+                                        <select wire:model="new_juicios.{{ $s['id'] }}"
+                                                class="w-full border border-gray-300 rounded px-1 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-400">
+                                            <option value="aprobado">Aprobado</option>
+                                            <option value="pendiente">Pendiente</option>
+                                            <option value="no_aprobado">No Aprobado</option>
+                                        </select>
+                                    </td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                @endif
 
                 <div class="flex gap-2 pt-1">
                     <button type="submit"
@@ -917,13 +1048,14 @@ new class extends Component
                     </div>
                     <div>
                         <label class="block text-xs font-medium text-gray-600 mb-1">Tipo *</label>
-                        <select wire:model="editing_tipo"
+                        <select wire:model.live="editing_tipo"
                                 class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
                             <option value="">Seleccionar...</option>
+                            <option value="inicio_ficha">Inicio de Ficha (GD-F-001)</option>
                             <option value="seguimiento">Seguimiento (GD-F-007)</option>
-                            <option value="inicio_ficha">Inicio de Ficha</option>
                             <option value="visita_seguimiento">Visita de Seguimiento</option>
-                            <option value="cierre">Cierre</option>
+                            <option value="induccion">Inducción / Reinducción</option>
+                            <option value="cierre">Cierre del Proceso Formativo</option>
                             <option value="aprobacion_etapa_practica">Aprobación Etapa Práctica</option>
                         </select>
                         @error('editing_tipo') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
@@ -1073,11 +1205,55 @@ new class extends Component
                     </div>
                 </div>
 
+                {{-- Conclusiones --}}
                 <div>
-                    <label class="block text-xs font-medium text-gray-600 mb-1">Observaciones</label>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Conclusiones</label>
+                    <textarea wire:model="editing_conclusiones" rows="2"
+                              class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none"></textarea>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Observaciones / Anexos</label>
                     <textarea wire:model="editing_observaciones" rows="2"
                               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none"></textarea>
                 </div>
+
+                {{-- Juicios evaluativos (Cierre / Inducción) --}}
+                @if(count($juicio_students) > 0 && $showEditModal)
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-2">
+                        Juicios Evaluativos por Aprendiz
+                        <span class="text-gray-400 font-normal">({{ count($juicio_students) }} aprendices)</span>
+                    </label>
+                    <div class="border border-gray-200 rounded-lg overflow-hidden max-h-52 overflow-y-auto">
+                        <table class="w-full text-xs">
+                            <thead class="bg-gray-50 sticky top-0">
+                                <tr>
+                                    <th class="px-2 py-1.5 text-left font-medium text-gray-500">Aprendiz</th>
+                                    <th class="px-2 py-1.5 text-left font-medium text-gray-500">Identificación</th>
+                                    <th class="px-2 py-1.5 text-left font-medium text-gray-500 w-36">Juicio</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100">
+                                @foreach($juicio_students as $s)
+                                <tr>
+                                    <td class="px-2 py-1">{{ $s['name'] }}</td>
+                                    <td class="px-2 py-1 text-gray-400">{{ $s['identifier'] ?? '—' }}</td>
+                                    <td class="px-1 py-1">
+                                        <select wire:model="editing_juicios.{{ $s['id'] }}"
+                                                class="w-full border border-gray-300 rounded px-1 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-400">
+                                            <option value="aprobado">Aprobado</option>
+                                            <option value="pendiente">Pendiente</option>
+                                            <option value="no_aprobado">No Aprobado</option>
+                                        </select>
+                                    </td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                @endif
 
                 <div class="flex gap-2 pt-1">
                     <button type="submit"

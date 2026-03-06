@@ -23,6 +23,7 @@ class Acta extends Model
         'desarrollo',
         'compromisos',    // texto legacy — usar compromisos() para la tabla estructurada
         'observaciones',
+        'conclusiones',
     ];
 
     protected $casts = [
@@ -64,6 +65,12 @@ class Acta extends Model
         return $this->hasMany(ActaCompromiso::class)->orderBy('orden');
     }
 
+    /** Juicios evaluativos por aprendiz (Cierre e Inducción) */
+    public function juicios()
+    {
+        return $this->hasMany(ActaJuicio::class)->with('student');
+    }
+
     // ── Accessors ──────────────────────────────────────────────────
 
     public function getTipoLabelAttribute(): string
@@ -73,6 +80,7 @@ class Acta extends Model
             'inicio_ficha'              => 'Inicio de Ficha y Distribución de Temario',
             'visita_seguimiento'        => 'Visita de Seguimiento',
             'cierre'                    => 'Cierre del Proceso Formativo',
+            'induccion'                 => 'Inducción y Reinducción de Aprendices',
             'aprobacion_etapa_practica' => 'Aprobación Etapa Práctica',
             default                     => ucfirst($this->tipo),
         };
@@ -85,6 +93,7 @@ class Acta extends Model
             'visita_seguimiento'        => 'GD-F-007',
             'inicio_ficha'              => 'GD-F-001',
             'cierre'                    => 'GD-F-009',
+            'induccion'                 => 'GD-F-005',
             'aprobacion_etapa_practica' => 'GFPI-F-023',
             default                     => 'GD-F-007',
         };
@@ -97,6 +106,7 @@ class Acta extends Model
             'inicio_ficha'              => 'Inicio de Ficha',
             'visita_seguimiento'        => 'Visita Seguimiento',
             'cierre'                    => 'Cierre',
+            'induccion'                 => 'Inducción',
             'aprobacion_etapa_practica' => 'Aprobación Etapa Práctica',
             default                     => ucfirst($this->tipo),
         };

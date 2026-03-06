@@ -10,12 +10,18 @@ state([
     'new_email'                   => '',
     'new_password'                => '',
     'new_password_confirmation'   => '',
+    'new_centro'                  => '',
+    'new_regional'                => '',
+    'new_document'                => '',
     // Modal editar
     'editing_id'                  => null,
     'editing_name'                => '',
     'editing_email'               => '',
     'editing_password'            => '',
     'editing_password_confirmation' => '',
+    'editing_centro'              => '',
+    'editing_regional'            => '',
+    'editing_document'            => '',
     'showEditModal'               => false,
 ]);
 
@@ -43,25 +49,31 @@ $addTeacher = function () {
     ]);
 
     User::create([
-        'name'     => trim($this->new_name),
-        'email'    => trim($this->new_email),
-        'password' => Hash::make($this->new_password),
-        'role'     => 'teacher',
+        'name'             => trim($this->new_name),
+        'email'            => trim($this->new_email),
+        'password'         => Hash::make($this->new_password),
+        'role'             => 'teacher',
+        'centro_formacion' => trim($this->new_centro) ?: null,
+        'regional'         => trim($this->new_regional) ?: null,
+        'document_number'  => trim($this->new_document) ?: null,
     ]);
 
-    $this->reset(['new_name', 'new_email', 'new_password', 'new_password_confirmation']);
+    $this->reset(['new_name', 'new_email', 'new_password', 'new_password_confirmation', 'new_centro', 'new_regional', 'new_document']);
     $this->loadTeachers();
     session()->flash('success', 'Profesor creado exitosamente.');
 };
 
 $openEdit = function (int $id) {
     $user = User::where('id', $id)->where('role', 'teacher')->firstOrFail();
-    $this->editing_id                  = $user->id;
-    $this->editing_name                = $user->name;
-    $this->editing_email               = $user->email;
-    $this->editing_password            = '';
+    $this->editing_id                    = $user->id;
+    $this->editing_name                  = $user->name;
+    $this->editing_email                 = $user->email;
+    $this->editing_password              = '';
     $this->editing_password_confirmation = '';
-    $this->showEditModal               = true;
+    $this->editing_centro                = $user->centro_formacion ?? '';
+    $this->editing_regional              = $user->regional ?? '';
+    $this->editing_document              = $user->document_number ?? '';
+    $this->showEditModal                 = true;
 };
 
 $saveEdit = function () {
@@ -85,8 +97,11 @@ $saveEdit = function () {
     $this->validate($rules, $messages);
 
     $data = [
-        'name'  => trim($this->editing_name),
-        'email' => trim($this->editing_email),
+        'name'             => trim($this->editing_name),
+        'email'            => trim($this->editing_email),
+        'centro_formacion' => trim($this->editing_centro) ?: null,
+        'regional'         => trim($this->editing_regional) ?: null,
+        'document_number'  => trim($this->editing_document) ?: null,
     ];
     if ($this->editing_password !== '') {
         $data['password'] = Hash::make($this->editing_password);
@@ -156,6 +171,27 @@ $deleteTeacher = function (int $id) {
                     <div>
                         <label class="block text-xs font-medium text-gray-600 mb-1">Confirmar contraseña</label>
                         <input type="password" wire:model="new_password_confirmation" placeholder="Repite la contraseña"
+                               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                    </div>
+
+                    <!-- Documento -->
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">N° Documento</label>
+                        <input type="text" wire:model="new_document" placeholder="Ej: 1039682875"
+                               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                    </div>
+
+                    <!-- Centro de formación -->
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Centro de Formación</label>
+                        <input type="text" wire:model="new_centro" placeholder="Ej: Centro Tecnológico del Mobiliario"
+                               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                    </div>
+
+                    <!-- Regional -->
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Regional</label>
+                        <input type="text" wire:model="new_regional" placeholder="Ej: Antioquia"
                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
                     </div>
 
@@ -276,6 +312,27 @@ $deleteTeacher = function (int $id) {
                 <div>
                     <label class="block text-xs font-medium text-gray-600 mb-1">Confirmar nueva contraseña</label>
                     <input type="password" wire:model="editing_password_confirmation"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                </div>
+
+                <!-- Documento -->
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">N° Documento</label>
+                    <input type="text" wire:model="editing_document"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                </div>
+
+                <!-- Centro de formación -->
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Centro de Formación</label>
+                    <input type="text" wire:model="editing_centro"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                </div>
+
+                <!-- Regional -->
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Regional</label>
+                    <input type="text" wire:model="editing_regional"
                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
                 </div>
 

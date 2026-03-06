@@ -22,6 +22,7 @@ class ActaController extends Controller
             'docentePar',
             'competencia',
             'compromisoItems',
+            'juicios.student',
             'user',
         ]);
         return $acta;

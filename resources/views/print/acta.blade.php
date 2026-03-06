@@ -1,3 +1,16 @@
+@php
+    $template = match($acta->tipo) {
+        'seguimiento', 'visita_seguimiento' => 'print.acta-seguimiento',
+        'cierre'                            => 'print.acta-cierre',
+        'induccion', 'aprobacion_etapa_practica' => 'print.acta-induccion',
+        default                             => 'print.acta-inicio',  // inicio_ficha y cualquier otro
+    };
+@endphp
+@include($template, ['acta' => $acta, 'logoSrc' => $logoSrc ?? null, 'isPdf' => $isPdf ?? false])
+{{-- ============================================================
+     LEGACY FALLBACK (solo si el template no existe)
+     ============================================================ --}}
+@if(false)
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -354,3 +367,4 @@
 
 </body>
 </html>
+@endif
