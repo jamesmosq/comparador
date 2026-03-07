@@ -84,6 +84,17 @@ new class extends Component {
             return;
         }
 
+        // Pre-poblar TODAS las claves con null antes de cargar valores reales.
+        // Alpine v3 usa Proxy reactivo: puede leer claves existentes (get trap)
+        // pero NO enumera claves añadidas dinámicamente (ownKeys trap).
+        // Si el objeto empieza con todas las claves, Alpine las rastrea desde
+        // el inicio y JSON.stringify/Object.entries funcionan correctamente.
+        foreach ($studentIds as $sid) {
+            foreach ($raIds as $rid) {
+                $this->notas["{$sid}_{$rid}"] = null;
+            }
+        }
+
         $calificaciones = Calificacion::whereIn('student_id', $studentIds)
             ->whereIn('resultado_aprendizaje_id', $raIds)
             ->where('group_id', $this->group_id)
