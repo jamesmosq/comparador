@@ -128,21 +128,24 @@ new class extends Component {
             }
         }
 
+        // Re-consultar desde BD usando los IDs primitivos (Livewire serializa IDs
+        // simples perfectamente; las colecciones Eloquent pueden perderse en hydration)
+        $ras      = ResultadoAprendizaje::where('competencia_id', $this->competencia_id)->orderBy('order')->get();
+        $students = Student::where('group_id', $this->group_id)->orderBy('name')->get();
+
         $count = 0;
 
-        foreach ($this->resultadosAprendizaje as $ra) {
-            foreach ($this->students as $student) {
-                $raId      = data_get($ra, 'id');
-                $studentId = data_get($student, 'id');
-                $key  = $studentId . '_' . $raId;
+        foreach ($ras as $ra) {
+            foreach ($students as $student) {
+                $key  = $student->id . '_' . $ra->id;
                 $nota = $this->notas[$key] ?? null;
-                $obs  = $this->observaciones[$studentId] ?? null;
+                $obs  = $this->observaciones[$student->id] ?? null;
 
                 if ($nota !== null && $nota !== '') {
                     Calificacion::updateOrCreate(
                         [
-                            'student_id'               => $studentId,
-                            'resultado_aprendizaje_id' => $raId,
+                            'student_id'               => $student->id,
+                            'resultado_aprendizaje_id' => $ra->id,
                             'group_id'                 => $this->group_id,
                         ],
                         [
