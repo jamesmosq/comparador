@@ -160,14 +160,7 @@ new class extends Component {
         }
 
         if ($count === 0) {
-            $firstKey   = array_key_first($this->notas) ?? 'vacío';
-            $firstRaId  = $ras->first()?->id ?? 'ninguno';
-            $firstStId  = $students->first()?->id ?? 'ninguno';
-            $expectedKey = "{$firstStId}_{$firstRaId}";
-            $this->errorMessage = "DEBUG — group:{$this->group_id} comp:{$this->competencia_id} | "
-                . "RAs:{$ras->count()} Students:{$students->count()} | "
-                . "notas_keys:" . count($this->notas) . " primera_clave_recibida:[{$firstKey}] | "
-                . "clave_esperada:[{$expectedKey}]";
+            $this->errorMessage = 'No se guardó ninguna nota. Ingresa al menos una calificación antes de guardar.';
             return;
         }
 
@@ -289,7 +282,12 @@ new class extends Component {
                             if (isNaN(n) || n < 1.0 || n > 5.0) return;
                         }
                     }
-                    $wire.saveNotasData(this.notas, this.observaciones);
+                    // JSON.parse/stringify desempaqueta el Proxy reactivo de Alpine
+                    // para que Livewire pueda serializar el objeto correctamente
+                    $wire.saveNotasData(
+                        JSON.parse(JSON.stringify(this.notas)),
+                        JSON.parse(JSON.stringify(this.observaciones))
+                    );
                 }
             }">
 
