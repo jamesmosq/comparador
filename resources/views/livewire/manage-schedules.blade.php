@@ -31,6 +31,7 @@ new class extends Component
     public string $new_group_end      = '';
 
     // Crear horario — selector cascada Competencia → RA → jornada
+    public $groupProgramaId          = null; // tracks if active group has a programa assigned
     public $new_competencia_sched_id = '';
     public $competencias_sched       = [];
     public $new_ra_sched_id          = '';
@@ -97,10 +98,12 @@ new class extends Component
                 ->get();
 
             $group = Group::with('programaFormacion.competencias')->find($value);
+            $this->groupProgramaId    = $group?->programa_formacion_id;
             $this->competencias_sched = $group?->programaFormacion?->competencias ?? collect();
         } else {
             $this->schedules          = [];
             $this->competencias_sched = [];
+            $this->groupProgramaId    = null;
         }
     }
 
@@ -569,7 +572,9 @@ new class extends Component
                             class="border border-gray-300 p-2 rounded-lg w-full text-sm focus:outline-none focus:ring-2 focus:ring-green-400">
                         <option value="">-- Selecciona un grupo --</option>
                         @foreach($groups as $grp)
-                            <option value="{{ $grp->id }}">{{ $grp->name }}</option>
+                            <option value="{{ $grp->id }}">
+                                {{ $grp->name }}{{ $grp->ficha_number ? ' [Ficha ' . $grp->ficha_number . ']' : '' }}{{ !$grp->programa_formacion_id ? ' — Sin programa' : '' }}
+                            </option>
                         @endforeach
                     </select>
                 </div>
@@ -623,8 +628,17 @@ new class extends Component
                             <option value="{{ $comp->id }}">{{ $comp->code ? '[' . $comp->code . '] ' : '' }}{{ $comp->name }}</option>
                         @endforeach
                     </select>
-                    @if(count($competencias_sched) === 0)
-                        <p class="text-xs text-amber-500 mt-1">La ficha no tiene programa asignado.</p>
+                    @if(count($competencias_sched) === 0 && $group_id)
+                        @if(!$groupProgramaId)
+                            <p class="text-xs text-amber-600 mt-1">
+                                Este grupo no tiene un Programa de Formacion asignado.
+                                Editelo en la seccion "Grupos" para asignarlo.
+                            </p>
+                        @else
+                            <p class="text-xs text-amber-600 mt-1">
+                                El Programa de Formacion asignado no tiene competencias configuradas aun.
+                            </p>
+                        @endif
                     @endif
                 </div>
                 <div>
