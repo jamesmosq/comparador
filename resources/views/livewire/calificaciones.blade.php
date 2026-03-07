@@ -21,6 +21,7 @@ new class extends Component {
     public array $observaciones = [];
 
     public bool    $saved        = false;
+    public int     $savedCount   = 0;
     public ?string $errorMessage = null;
 
     public function mount(): void
@@ -108,6 +109,7 @@ new class extends Component {
     public function guardar(): void
     {
         $this->saved        = false;
+        $this->savedCount   = 0;
         $this->errorMessage = null;
 
         if (! $this->group_id || ! $this->competencia_id) {
@@ -125,6 +127,8 @@ new class extends Component {
                 }
             }
         }
+
+        $count = 0;
 
         foreach ($this->resultadosAprendizaje as $ra) {
             foreach ($this->students as $student) {
@@ -147,10 +151,17 @@ new class extends Component {
                             'user_id'     => auth()->id(),
                         ]
                     );
+                    $count++;
                 }
             }
         }
 
+        if ($count === 0) {
+            $this->errorMessage = 'No se guardó ninguna nota. Asegúrate de ingresar al menos una calificación.';
+            return;
+        }
+
+        $this->savedCount = $count;
         $this->saved = true;
     }
 }; ?>
@@ -200,7 +211,7 @@ new class extends Component {
             <svg class="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                 <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
             </svg>
-            Calificaciones guardadas correctamente.
+            {{ $savedCount }} {{ $savedCount === 1 ? 'calificación guardada' : 'calificaciones guardadas' }} correctamente.
         </div>
     @endif
 
