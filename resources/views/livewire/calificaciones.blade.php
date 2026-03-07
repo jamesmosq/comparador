@@ -128,15 +128,17 @@ new class extends Component {
 
         foreach ($this->resultadosAprendizaje as $ra) {
             foreach ($this->students as $student) {
-                $key  = $student->id . '_' . $ra->id;
+                $raId      = data_get($ra, 'id');
+                $studentId = data_get($student, 'id');
+                $key  = $studentId . '_' . $raId;
                 $nota = $this->notas[$key] ?? null;
-                $obs  = $this->observaciones[$student->id] ?? null;
+                $obs  = $this->observaciones[$studentId] ?? null;
 
                 if ($nota !== null && $nota !== '') {
                     Calificacion::updateOrCreate(
                         [
-                            'student_id'               => $student->id,
-                            'resultado_aprendizaje_id' => $ra->id,
+                            'student_id'               => $studentId,
+                            'resultado_aprendizaje_id' => $raId,
                             'group_id'                 => $this->group_id,
                         ],
                         [
