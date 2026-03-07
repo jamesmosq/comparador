@@ -218,6 +218,31 @@ new class extends Component {
         <div x-data="{
                 notas: @json($notas),
                 observaciones: @json($observaciones),
+                notasError: {},
+                setNota(key, rawValue) {
+                    if (rawValue === '' || rawValue === null) {
+                        this.notas[key] = null;
+                        delete this.notasError[key];
+                        return;
+                    }
+                    const n = parseFloat(rawValue);
+                    if (isNaN(n)) {
+                        this.notasError[key] = 'Valor inválido';
+                        this.notas[key] = null;
+                    } else if (n < 1.0) {
+                        this.notasError[key] = 'Mínimo 1.0';
+                        this.notas[key] = null;
+                    } else if (n > 5.0) {
+                        this.notasError[key] = 'Máximo 5.0';
+                        this.notas[key] = null;
+                    } else {
+                        delete this.notasError[key];
+                        this.notas[key] = n;
+                    }
+                },
+                hasErrors() {
+                    return Object.keys(this.notasError).length > 0;
+                },
                 equivalencia(nota) {
                     const n = parseFloat(nota);
                     if (isNaN(n)) return null;
@@ -231,6 +256,7 @@ new class extends Component {
                     return (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1);
                 },
                 save() {
+                    if (this.hasErrors()) return;
                     $wire.saveNotasData(this.notas, this.observaciones);
                 }
             }">
@@ -280,11 +306,18 @@ new class extends Component {
                                                 min="1.0" max="5.0" step="0.1"
                                                 placeholder="—"
                                                 :value="notas['{{ $notaKey }}'] ?? ''"
-                                                @input="notas['{{ $notaKey }}'] = $event.target.value !== '' ? parseFloat($event.target.value) : null"
-                                                class="w-20 text-center border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                                                @input="setNota('{{ $notaKey }}', $event.target.value)"
+                                                :class="notasError['{{ $notaKey }}']
+                                                    ? 'border-red-400 bg-red-50 focus:ring-red-400'
+                                                    : 'border-gray-300 focus:ring-indigo-400'"
+                                                class="w-20 text-center border rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2"
                                             >
                                             <div class="mt-1 min-h-[18px]">
-                                                <template x-if="notas['{{ $notaKey }}'] !== null && notas['{{ $notaKey }}'] !== '' && !isNaN(parseFloat(notas['{{ $notaKey }}']))">
+                                                <template x-if="notasError['{{ $notaKey }}']">
+                                                    <span class="text-red-600 text-xs font-medium"
+                                                          x-text="notasError['{{ $notaKey }}']"></span>
+                                                </template>
+                                                <template x-if="!notasError['{{ $notaKey }}'] && notas['{{ $notaKey }}'] !== null && notas['{{ $notaKey }}'] !== '' && !isNaN(parseFloat(notas['{{ $notaKey }}']))">
                                                     <span
                                                         :class="parseFloat(notas['{{ $notaKey }}']) >= 3.0
                                                             ? 'bg-green-100 text-green-700'
@@ -357,16 +390,27 @@ new class extends Component {
                     </div>
 
                     {{-- Guardar --}}
-                    <button
-                        @click="save()"
-                        class="inline-flex items-center gap-2 px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition-colors shadow-sm"
-                    >
-                        <svg class="w-4 h-4" wire:loading.remove wire:target="saveNotasData" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                        </svg>
-                        <span wire:loading.remove wire:target="saveNotasData">Guardar Calificaciones</span>
-                        <span wire:loading wire:target="saveNotasData">Guardando...</span>
-                    </button>
+                    <div class="flex items-center gap-3">
+                        <button
+                            @click="save()"
+                            :disabled="hasErrors()"
+                            :class="hasErrors()
+                                ? 'bg-gray-300 cursor-not-allowed opacity-60'
+                                : 'bg-indigo-600 hover:bg-indigo-700 cursor-pointer'"
+                            class="inline-flex items-center gap-2 px-6 py-2 text-white text-sm font-semibold rounded-lg transition-colors shadow-sm"
+                        >
+                            <svg class="w-4 h-4" wire:loading.remove wire:target="saveNotasData" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                            </svg>
+                            <span wire:loading.remove wire:target="saveNotasData">Guardar Calificaciones</span>
+                            <span wire:loading wire:target="saveNotasData">Guardando...</span>
+                        </button>
+                        <template x-if="hasErrors()">
+                            <span class="text-red-600 text-xs font-medium">
+                                Corrige las notas fuera de rango antes de guardar.
+                            </span>
+                        </template>
+                    </div>
                 </div>
             </div>
         </div>
