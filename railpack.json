@@ -13,5 +13,8 @@
                 "chmod -R a+rw storage bootstrap/cache"
             ]
         }
+    },
+    "deploy": {
+        "startCommand": "php artisan migrate --force && /start-container.sh"
     }
 }

@@ -71,17 +71,17 @@ new class extends Component {
 
     private function cargarCalificaciones(): void
     {
+        $raIds      = collect($this->resultadosAprendizaje)->pluck('id');
+        $studentIds = collect($this->students)->pluck('id');
+
         if (
             ! $this->group_id ||
             ! $this->competencia_id ||
-            $this->resultadosAprendizaje->isEmpty() ||
-            $this->students->isEmpty()
+            $raIds->isEmpty() ||
+            $studentIds->isEmpty()
         ) {
             return;
         }
-
-        $raIds      = $this->resultadosAprendizaje->pluck('id');
-        $studentIds = $this->students->pluck('id');
 
         $calificaciones = Calificacion::whereIn('student_id', $studentIds)
             ->whereIn('resultado_aprendizaje_id', $raIds)
@@ -260,7 +260,7 @@ new class extends Component {
                         <tbody class="divide-y divide-gray-100">
                             @foreach($students as $student)
                                 @php
-                                    $raIds = $resultadosAprendizaje->pluck('id')->all();
+                                    $raIds = collect($resultadosAprendizaje)->pluck('id')->all();
                                 @endphp
                                 <tr class="hover:bg-gray-50">
                                     {{-- Nombre del aprendiz --}}
