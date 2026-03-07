@@ -9,18 +9,30 @@ return new class extends Migration
 {
     public function up(): void
     {
+        $isMysql = DB::getDriverName() === 'mysql';
+
         // 1. Hacer group_id nullable en actas (usaremos pivot para múltiples fichas)
-        DB::statement('ALTER TABLE actas DROP FOREIGN KEY actas_group_id_foreign');
-        DB::statement('ALTER TABLE actas MODIFY COLUMN group_id BIGINT UNSIGNED NULL');
-        DB::statement('ALTER TABLE actas ADD CONSTRAINT actas_group_id_foreign FOREIGN KEY (group_id) REFERENCES `groups`(id) ON DELETE SET NULL');
+        if ($isMysql) {
+            DB::statement('ALTER TABLE actas DROP FOREIGN KEY actas_group_id_foreign');
+            DB::statement('ALTER TABLE actas MODIFY COLUMN group_id BIGINT UNSIGNED NULL');
+            DB::statement('ALTER TABLE actas ADD CONSTRAINT actas_group_id_foreign FOREIGN KEY (group_id) REFERENCES `groups`(id) ON DELETE SET NULL');
+        } else {
+            // SQLite: recrear sin la FK estricta no es necesario en entorno de test;
+            // la columna ya es nullable al ser creada sin NOT NULL por el schema.
+            Schema::table('actas', function (Blueprint $table) {
+                $table->unsignedBigInteger('group_id')->nullable()->change();
+            });
+        }
 
         // 2. Agregar columna agenda
         Schema::table('actas', function (Blueprint $table) {
             $table->text('agenda')->nullable()->after('lugar');
         });
 
-        // 3. Agregar nuevo valor al enum tipo
-        DB::statement("ALTER TABLE actas MODIFY COLUMN tipo ENUM('seguimiento','inicio_ficha','visita_seguimiento','cierre','aprobacion_etapa_practica') NOT NULL");
+        // 3. Agregar nuevo valor al enum tipo (MySQL only — SQLite usa TEXT)
+        if ($isMysql) {
+            DB::statement("ALTER TABLE actas MODIFY COLUMN tipo ENUM('seguimiento','inicio_ficha','visita_seguimiento','cierre','aprobacion_etapa_practica') NOT NULL");
+        }
 
         // 4. Tabla pivote actas ↔ grupos (muchos a muchos)
         Schema::create('acta_group', function (Blueprint $table) {
@@ -43,6 +55,8 @@ return new class extends Migration
 
     public function down(): void
     {
+        $isMysql = DB::getDriverName() === 'mysql';
+
         Schema::dropIfExists('acta_compromisos');
         Schema::dropIfExists('acta_group');
 
@@ -50,10 +64,11 @@ return new class extends Migration
             $table->dropColumn('agenda');
         });
 
-        DB::statement("ALTER TABLE actas MODIFY COLUMN tipo ENUM('seguimiento','inicio_ficha','visita_seguimiento','cierre') NOT NULL");
-
-        DB::statement('ALTER TABLE actas DROP FOREIGN KEY actas_group_id_foreign');
-        DB::statement('ALTER TABLE actas MODIFY COLUMN group_id BIGINT UNSIGNED NOT NULL');
-        DB::statement('ALTER TABLE actas ADD CONSTRAINT actas_group_id_foreign FOREIGN KEY (group_id) REFERENCES `groups`(id) ON DELETE CASCADE');
+        if ($isMysql) {
+            DB::statement("ALTER TABLE actas MODIFY COLUMN tipo ENUM('seguimiento','inicio_ficha','visita_seguimiento','cierre') NOT NULL");
+            DB::statement('ALTER TABLE actas DROP FOREIGN KEY actas_group_id_foreign');
+            DB::statement('ALTER TABLE actas MODIFY COLUMN group_id BIGINT UNSIGNED NOT NULL');
+            DB::statement('ALTER TABLE actas ADD CONSTRAINT actas_group_id_foreign FOREIGN KEY (group_id) REFERENCES `groups`(id) ON DELETE CASCADE');
+        }
     }
 };
