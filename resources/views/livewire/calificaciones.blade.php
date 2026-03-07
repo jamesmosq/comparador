@@ -222,26 +222,29 @@ new class extends Component {
                 setNota(key, rawValue) {
                     if (rawValue === '' || rawValue === null) {
                         this.notas[key] = null;
-                        delete this.notasError[key];
+                        this.notasError[key] = null;
                         return;
                     }
                     const n = parseFloat(rawValue);
                     if (isNaN(n)) {
+                        this.notas[key] = rawValue;
                         this.notasError[key] = 'Valor inválido';
-                        this.notas[key] = null;
                     } else if (n < 1.0) {
-                        this.notasError[key] = 'Mínimo 1.0';
-                        this.notas[key] = null;
-                    } else if (n > 5.0) {
-                        this.notasError[key] = 'Máximo 5.0';
-                        this.notas[key] = null;
-                    } else {
-                        delete this.notasError[key];
                         this.notas[key] = n;
+                        this.notasError[key] = n <= 0 ? 'No se permiten valores negativos o cero' : 'Mínimo 1.0';
+                    } else if (n > 5.0) {
+                        this.notas[key] = n;
+                        this.notasError[key] = 'Máximo 5.0';
+                    } else {
+                        this.notas[key] = n;
+                        this.notasError[key] = null;
                     }
                 },
-                hasErrors() {
-                    return Object.keys(this.notasError).length > 0;
+                notaIsInvalid(key) {
+                    return this.notasError[key] !== null && this.notasError[key] !== undefined;
+                },
+                anyError() {
+                    return Object.values(this.notasError).some(e => e !== null && e !== undefined);
                 },
                 equivalencia(nota) {
                     const n = parseFloat(nota);
@@ -251,12 +254,18 @@ new class extends Component {
                 promedioFor(studentId, raIds) {
                     const vals = raIds
                         .map(raId => parseFloat(this.notas[studentId + '_' + raId]))
-                        .filter(v => !isNaN(v));
+                        .filter(v => !isNaN(v) && v >= 1.0 && v <= 5.0);
                     if (!vals.length) return null;
                     return (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1);
                 },
                 save() {
-                    if (this.hasErrors()) return;
+                    // Verificar rango directamente en notas (no depende solo de notasError)
+                    for (const val of Object.values(this.notas)) {
+                        if (val !== null && val !== undefined) {
+                            const n = parseFloat(val);
+                            if (isNaN(n) || n < 1.0 || n > 5.0) return;
+                        }
+                    }
                     $wire.saveNotasData(this.notas, this.observaciones);
                 }
             }">
@@ -303,21 +312,21 @@ new class extends Component {
                                         <td class="px-3 py-2 text-center border-r border-gray-100">
                                             <input
                                                 type="number"
-                                                min="1.0" max="5.0" step="0.1"
+                                                step="0.1"
                                                 placeholder="—"
                                                 :value="notas['{{ $notaKey }}'] ?? ''"
                                                 @input="setNota('{{ $notaKey }}', $event.target.value)"
-                                                :class="notasError['{{ $notaKey }}']
-                                                    ? 'border-red-400 bg-red-50 focus:ring-red-400'
+                                                :class="notaIsInvalid('{{ $notaKey }}')
+                                                    ? 'border-red-500 bg-red-50 focus:ring-red-400'
                                                     : 'border-gray-300 focus:ring-indigo-400'"
                                                 class="w-20 text-center border rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2"
                                             >
                                             <div class="mt-1 min-h-[18px]">
-                                                <template x-if="notasError['{{ $notaKey }}']">
+                                                <template x-if="notaIsInvalid('{{ $notaKey }}')">
                                                     <span class="text-red-600 text-xs font-medium"
                                                           x-text="notasError['{{ $notaKey }}']"></span>
                                                 </template>
-                                                <template x-if="!notasError['{{ $notaKey }}'] && notas['{{ $notaKey }}'] !== null && notas['{{ $notaKey }}'] !== '' && !isNaN(parseFloat(notas['{{ $notaKey }}']))">
+                                                <template x-if="!notaIsInvalid('{{ $notaKey }}') && notas['{{ $notaKey }}'] !== null && notas['{{ $notaKey }}'] !== '' && !isNaN(parseFloat(notas['{{ $notaKey }}']))">
                                                     <span
                                                         :class="parseFloat(notas['{{ $notaKey }}']) >= 3.0
                                                             ? 'bg-green-100 text-green-700'
@@ -393,8 +402,8 @@ new class extends Component {
                     <div class="flex items-center gap-3">
                         <button
                             @click="save()"
-                            :disabled="hasErrors()"
-                            :class="hasErrors()
+                            :disabled="anyError()"
+                            :class="anyError()
                                 ? 'bg-gray-300 cursor-not-allowed opacity-60'
                                 : 'bg-indigo-600 hover:bg-indigo-700 cursor-pointer'"
                             class="inline-flex items-center gap-2 px-6 py-2 text-white text-sm font-semibold rounded-lg transition-colors shadow-sm"
@@ -405,7 +414,7 @@ new class extends Component {
                             <span wire:loading.remove wire:target="saveNotasData">Guardar Calificaciones</span>
                             <span wire:loading wire:target="saveNotasData">Guardando...</span>
                         </button>
-                        <template x-if="hasErrors()">
+                        <template x-if="anyError()">
                             <span class="text-red-600 text-xs font-medium">
                                 Corrige las notas fuera de rango antes de guardar.
                             </span>
