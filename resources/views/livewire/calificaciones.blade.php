@@ -160,7 +160,14 @@ new class extends Component {
         }
 
         if ($count === 0) {
-            $this->errorMessage = 'No se guardó ninguna nota. Asegúrate de ingresar al menos una calificación.';
+            $firstKey   = array_key_first($this->notas) ?? 'vacío';
+            $firstRaId  = $ras->first()?->id ?? 'ninguno';
+            $firstStId  = $students->first()?->id ?? 'ninguno';
+            $expectedKey = "{$firstStId}_{$firstRaId}";
+            $this->errorMessage = "DEBUG — group:{$this->group_id} comp:{$this->competencia_id} | "
+                . "RAs:{$ras->count()} Students:{$students->count()} | "
+                . "notas_keys:" . count($this->notas) . " primera_clave_recibida:[{$firstKey}] | "
+                . "clave_esperada:[{$expectedKey}]";
             return;
         }
 
