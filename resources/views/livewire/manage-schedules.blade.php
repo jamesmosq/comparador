@@ -5,6 +5,8 @@ use App\Models\Institution;
 use App\Models\Group;
 use App\Models\Schedule;
 use App\Models\ProgramaFormacion;
+use App\Models\Competencia;
+use App\Models\ResultadoAprendizaje;
 
 new class extends Component
 {
@@ -28,11 +30,14 @@ new class extends Component
     public string $new_group_start    = '';
     public string $new_group_end      = '';
 
-    // Crear horario (materia)
-    public string $new_subject = '';
-    public string $new_day     = '';
-    public string $new_start   = '';
-    public string $new_end     = '';
+    // Crear horario — selector cascada Competencia → RA → jornada
+    public $new_competencia_sched_id = '';
+    public $competencias_sched       = [];
+    public $new_ra_sched_id          = '';
+    public $resultados_sched         = [];
+    public string $new_day           = '';
+    public string $new_start         = '';
+    public string $new_end           = '';
 
     // Editar institución (modal)
     public $editing_institution_id      = null;
@@ -52,7 +57,9 @@ new class extends Component
 
     // Editar horario (modal)
     public $editing_schedule_id  = null;
-    public string $editing_subject = '';
+    public $editing_competencia_sched_id = '';
+    public $editing_resultados_sched     = [];
+    public $editing_ra_sched_id          = '';
     public string $editing_day     = '';
     public string $editing_start   = '';
     public string $editing_end     = '';
@@ -78,14 +85,39 @@ new class extends Component
 
     public function updatedGroupId($value)
     {
+        $this->new_competencia_sched_id = '';
+        $this->new_ra_sched_id          = '';
+        $this->resultados_sched         = [];
+
         if ($value) {
-            $this->schedules = Schedule::where('group_id', $value)
+            $this->schedules = Schedule::with('resultadoAprendizaje')
+                ->where('group_id', $value)
                 ->orderBy('day_of_week')
                 ->orderBy('start_time')
                 ->get();
+
+            $group = Group::with('programaFormacion.competencias')->find($value);
+            $this->competencias_sched = $group?->programaFormacion?->competencias ?? collect();
         } else {
-            $this->schedules = [];
+            $this->schedules          = [];
+            $this->competencias_sched = [];
         }
+    }
+
+    public function updatedNewCompetenciaSchedId($value): void
+    {
+        $this->new_ra_sched_id = '';
+        $this->resultados_sched = $value
+            ? ResultadoAprendizaje::where('competencia_id', $value)->orderBy('order')->get()
+            : collect();
+    }
+
+    public function updatedEditingCompetenciaSchedId($value): void
+    {
+        $this->editing_ra_sched_id    = '';
+        $this->editing_resultados_sched = $value
+            ? ResultadoAprendizaje::where('competencia_id', $value)->orderBy('order')->get()
+            : collect();
     }
 
     public function getDayName(string $day): string
@@ -231,54 +263,68 @@ new class extends Component
     public function addSchedule()
     {
         $this->validate([
-            'group_id'    => 'required|exists:groups,id',
-            'new_subject' => 'required',
-            'new_day'     => 'required',
-            'new_start'   => 'required',
-            'new_end'     => 'required|after:new_start',
+            'group_id'       => 'required|exists:groups,id',
+            'new_ra_sched_id' => 'required|exists:resultados_aprendizaje,id',
+            'new_day'        => 'required',
+            'new_start'      => 'required',
+            'new_end'        => 'required|after:new_start',
         ], [
-            'new_end.after' => 'La hora de fin debe ser posterior a la hora de inicio.',
+            'new_ra_sched_id.required' => 'Selecciona un Resultado de Aprendizaje.',
+            'new_end.after'            => 'La hora de fin debe ser posterior a la hora de inicio.',
         ]);
 
         Schedule::create([
-            'group_id'    => $this->group_id,
-            'subject'     => $this->new_subject,
-            'day_of_week' => $this->new_day,
-            'start_time'  => $this->new_start,
-            'end_time'    => $this->new_end,
+            'group_id'                 => $this->group_id,
+            'resultado_aprendizaje_id' => $this->new_ra_sched_id,
+            'day_of_week'              => $this->new_day,
+            'start_time'               => $this->new_start,
+            'end_time'                 => $this->new_end,
         ]);
 
-        $this->reset('new_subject', 'new_day', 'new_start', 'new_end');
+        $this->reset('new_competencia_sched_id', 'new_ra_sched_id', 'new_day', 'new_start', 'new_end');
+        $this->resultados_sched = [];
         $this->updatedGroupId($this->group_id);
     }
 
     public function openEditSchedule($id)
     {
-        $schedule = Schedule::find($id);
-        $this->editing_schedule_id   = $id;
-        $this->editing_subject       = $schedule->subject;
-        $this->editing_day           = $schedule->day_of_week;
-        $this->editing_start         = $schedule->start_time;
-        $this->editing_end           = $schedule->end_time;
+        $schedule = Schedule::with('resultadoAprendizaje')->find($id);
+        $this->editing_schedule_id = $id;
+        $this->editing_day         = $schedule->day_of_week;
+        $this->editing_start       = $schedule->start_time;
+        $this->editing_end         = $schedule->end_time;
+
+        if ($schedule->resultado_aprendizaje_id && $schedule->resultadoAprendizaje) {
+            $competenciaId = $schedule->resultadoAprendizaje->competencia_id;
+            $this->editing_competencia_sched_id = $competenciaId;
+            $this->editing_resultados_sched     = ResultadoAprendizaje::where('competencia_id', $competenciaId)->orderBy('order')->get();
+            $this->editing_ra_sched_id          = $schedule->resultado_aprendizaje_id;
+        } else {
+            $this->editing_competencia_sched_id = '';
+            $this->editing_resultados_sched     = collect();
+            $this->editing_ra_sched_id          = '';
+        }
+
         $this->showEditScheduleModal = true;
     }
 
     public function saveSchedule()
     {
         $this->validate([
-            'editing_subject' => 'required',
-            'editing_day'     => 'required',
-            'editing_start'   => 'required',
-            'editing_end'     => 'required|after:editing_start',
+            'editing_ra_sched_id' => 'required|exists:resultados_aprendizaje,id',
+            'editing_day'         => 'required',
+            'editing_start'       => 'required',
+            'editing_end'         => 'required|after:editing_start',
         ], [
-            'editing_end.after' => 'La hora de fin debe ser posterior a la hora de inicio.',
+            'editing_ra_sched_id.required' => 'Selecciona un Resultado de Aprendizaje.',
+            'editing_end.after'            => 'La hora de fin debe ser posterior a la hora de inicio.',
         ]);
 
         Schedule::find($this->editing_schedule_id)->update([
-            'subject'     => $this->editing_subject,
-            'day_of_week' => $this->editing_day,
-            'start_time'  => $this->editing_start,
-            'end_time'    => $this->editing_end,
+            'resultado_aprendizaje_id' => $this->editing_ra_sched_id,
+            'day_of_week'              => $this->editing_day,
+            'start_time'               => $this->editing_start,
+            'end_time'                 => $this->editing_end,
         ]);
 
         $this->showEditScheduleModal = false;
@@ -564,14 +610,34 @@ new class extends Component
 
         {{-- Formulario añadir horario / materia --}}
         <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 mb-6">
-            <h2 class="font-semibold mb-1 text-gray-800">Añadir Materia al Horario</h2>
-            <p class="text-xs text-gray-400 mb-4">Aquí puedes registrar cada materia/clase con su propio día y horario específico.</p>
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-                <div class="lg:col-span-2">
-                    <label class="block text-xs text-gray-500 mb-1">Materia / Clase *</label>
-                    <input type="text" wire:model="new_subject" placeholder="Ej: Matemáticas"
-                           class="border border-gray-300 p-2 rounded-lg w-full text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
-                    @error('new_subject') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+            <h2 class="font-semibold mb-1 text-gray-800">Añadir Resultado de Aprendizaje al Horario</h2>
+            <p class="text-xs text-gray-400 mb-4">Selecciona la competencia y el resultado de aprendizaje, luego asigna el día y franja horaria.</p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1">Competencia *</label>
+                    <select wire:model.live="new_competencia_sched_id"
+                            class="border border-gray-300 p-2 rounded-lg w-full text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                            @disabled(count($competencias_sched) === 0)>
+                        <option value="">— Seleccionar —</option>
+                        @foreach($competencias_sched as $comp)
+                            <option value="{{ $comp->id }}">{{ $comp->code ? '[' . $comp->code . '] ' : '' }}{{ $comp->name }}</option>
+                        @endforeach
+                    </select>
+                    @if(count($competencias_sched) === 0)
+                        <p class="text-xs text-amber-500 mt-1">La ficha no tiene programa asignado.</p>
+                    @endif
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1">Resultado de Aprendizaje *</label>
+                    <select wire:model="new_ra_sched_id"
+                            class="border border-gray-300 p-2 rounded-lg w-full text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                            @disabled(!$new_competencia_sched_id || count($resultados_sched) === 0)>
+                        <option value="">— Seleccionar —</option>
+                        @foreach($resultados_sched as $ra)
+                            <option value="{{ $ra->id }}">{{ $ra->code ? '[' . $ra->code . '] ' : '' }}{{ $ra->name }}</option>
+                        @endforeach
+                    </select>
+                    @error('new_ra_sched_id') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                 </div>
                 <div>
                     <label class="block text-xs text-gray-500 mb-1">Día *</label>
@@ -588,21 +654,23 @@ new class extends Component
                     </select>
                     @error('new_day') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                 </div>
-                <div>
-                    <label class="block text-xs text-gray-500 mb-1">Hora inicio *</label>
-                    <input type="time" wire:model="new_start"
-                           class="border border-gray-300 p-2 rounded-lg w-full text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
-                    @error('new_start') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
-                </div>
-                <div>
-                    <label class="block text-xs text-gray-500 mb-1">Hora fin *</label>
-                    <input type="time" wire:model="new_end"
-                           class="border border-gray-300 p-2 rounded-lg w-full text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
-                    @error('new_end') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1">Inicio *</label>
+                        <input type="time" wire:model="new_start"
+                               class="border border-gray-300 p-2 rounded-lg w-full text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                        @error('new_start') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1">Fin *</label>
+                        <input type="time" wire:model="new_end"
+                               class="border border-gray-300 p-2 rounded-lg w-full text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                        @error('new_end') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                    </div>
                 </div>
             </div>
             <button wire:click="addSchedule" wire:loading.attr="disabled"
-                    class="mt-4 bg-indigo-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors disabled:opacity-50">
+                    class="mt-2 bg-indigo-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors disabled:opacity-50">
                 <span wire:loading wire:target="addSchedule">Guardando...</span>
                 <span wire:loading.remove wire:target="addSchedule">Añadir al Horario</span>
             </button>
@@ -634,7 +702,7 @@ new class extends Component
                                 <td class="px-5 py-3 text-gray-600 whitespace-nowrap font-medium">
                                     {{ substr($sched->start_time, 0, 5) }} – {{ substr($sched->end_time, 0, 5) }}
                                 </td>
-                                <td class="px-5 py-3 text-gray-800">{{ $sched->subject }}</td>
+                                <td class="px-5 py-3 text-gray-800">{{ $sched->label }}</td>
                                 <td class="px-5 py-3">
                                     <div x-data="{ confirmDelete: false }" class="flex items-center gap-3">
                                         <button wire:click="openEditSchedule({{ $sched->id }})"
@@ -784,10 +852,26 @@ new class extends Component
             </div>
             <div class="p-6 space-y-4">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Materia / Clase *</label>
-                    <input wire:model="editing_subject" type="text"
-                           class="border border-gray-300 p-2.5 rounded-lg w-full text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
-                    @error('editing_subject') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Competencia *</label>
+                    <select wire:model.live="editing_competencia_sched_id"
+                            class="border border-gray-300 p-2.5 rounded-lg w-full text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                        <option value="">— Seleccionar —</option>
+                        @foreach($competencias_sched as $comp)
+                            <option value="{{ $comp->id }}">{{ $comp->code ? '[' . $comp->code . '] ' : '' }}{{ $comp->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Resultado de Aprendizaje *</label>
+                    <select wire:model="editing_ra_sched_id"
+                            class="border border-gray-300 p-2.5 rounded-lg w-full text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                            @disabled(!$editing_competencia_sched_id)>
+                        <option value="">— Seleccionar —</option>
+                        @foreach($editing_resultados_sched as $ra)
+                            <option value="{{ $ra->id }}">{{ $ra->code ? '[' . $ra->code . '] ' : '' }}{{ $ra->name }}</option>
+                        @endforeach
+                    </select>
+                    @error('editing_ra_sched_id') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Día de la semana *</label>

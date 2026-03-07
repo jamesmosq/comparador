@@ -1,7 +1,6 @@
 <?php
 
 use Livewire\Volt\Component;
-use App\Models\Institution;
 use App\Models\Group;
 use App\Models\Student;
 use App\Models\Competencia;
@@ -10,15 +9,13 @@ use App\Models\Calificacion;
 
 new class extends Component {
 
-    public $institutions           = [];
-    public $groups                 = [];
-    public $competencias           = [];
-    public $resultadosAprendizaje  = [];
-    public $students               = [];
+    public $groups                = [];
+    public $competencias          = [];
+    public $resultadosAprendizaje = [];
+    public $students              = [];
 
-    public $institution_id  = null;
-    public $group_id        = null;
-    public $competencia_id  = null;
+    public $group_id       = null;
+    public $competencia_id = null;
 
     public array $notas        = [];
     public array $observaciones = [];
@@ -28,27 +25,13 @@ new class extends Component {
 
     public function mount(): void
     {
-        $this->institutions = Institution::visibleTo(auth()->user())->orderBy('name')->get();
-    }
-
-    public function updatedInstitutionId(): void
-    {
-        $this->group_id            = null;
-        $this->competencia_id      = null;
-        $this->groups              = collect();
-        $this->competencias        = collect();
-        $this->students            = collect();
-        $this->resultadosAprendizaje = collect();
-        $this->notas               = [];
-        $this->observaciones       = [];
-        $this->saved               = false;
-        $this->errorMessage        = null;
-
-        if ($this->institution_id) {
-            $this->groups = Group::where('institution_id', $this->institution_id)
-                ->orderBy('name')
-                ->get();
-        }
+        // Carga directa de fichas: la institución es implícita en el grupo
+        $user = auth()->user();
+        $this->groups = Group::with('institution')
+            ->when(! $user->isAdmin(), fn($q) => $q->whereHas('institution', fn($q2) => $q2->where('user_id', $user->id)))
+            ->orderByRaw("CAST(ficha_number AS UNSIGNED) ASC")
+            ->orderBy('name')
+            ->get();
     }
 
     public function updatedGroupId(): void
@@ -56,6 +39,7 @@ new class extends Component {
         $this->competencia_id        = null;
         $this->competencias          = collect();
         $this->resultadosAprendizaje = collect();
+        $this->students              = collect();
         $this->notas                 = [];
         $this->observaciones         = [];
         $this->saved                 = false;
@@ -177,27 +161,16 @@ new class extends Component {
 
     {{-- Filtros de selección --}}
     <div class="bg-white rounded-xl shadow-sm p-6 mb-6">
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Institución</label>
-                <select wire:model.live="institution_id"
-                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                    <option value="">— Seleccionar —</option>
-                    @foreach($institutions as $inst)
-                        <option value="{{ $inst->id }}">{{ $inst->name }}</option>
-                    @endforeach
-                </select>
-            </div>
-
-            <div>
-                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Grupo / Ficha</label>
+                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Ficha</label>
                 <select wire:model.live="group_id"
-                        @disabled(!$institution_id)
-                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-100 disabled:text-gray-400">
-                    <option value="">— Seleccionar —</option>
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <option value="">— Seleccionar ficha —</option>
                     @foreach($groups as $group)
                         <option value="{{ $group->id }}">
-                            {{ $group->name }}{{ $group->ficha_number ? ' (' . $group->ficha_number . ')' : '' }}
+                            @if($group->ficha_number)Ficha {{ $group->ficha_number }} — @endif{{ $group->name }}
+                            @if($group->institution) ({{ $group->institution->name }})@endif
                         </option>
                     @endforeach
                 </select>
